@@ -1,0 +1,279 @@
+/*
+ * COMPSIS – Computadores e Sistemas Ind. e Com. LTDA<br>
+ * Produto $(product_name} - ${product_description}<br>
+ *
+ * Data de Criação: 26/02/2014<br>
+ * <br>
+ * Todos os direitos reservados.
+ */
+
+package br.com.compsis.sicatinstall;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+
+import com.google.common.base.Strings;
+import com.google.common.io.Files;
+
+/** 
+ * DOCUMENTAÇÃO DA CLASSE <br>
+ * ---------------------- <br>
+ * FINALIDADE: <br>
+ * TODO Definir documentação da classe. <br>
+ * <br>
+ * HISTÓRICO DE DESENVOLVIMENTO: <br>
+ * 26/02/2014 - @author Lucas Israel - Primeira versão da classe. <br>
+ *<br>
+ *<br>
+ * LISTA DE CLASSES INTERNAS: <br>
+ */
+
+public class PathsSicatUtil {
+	public static String PATH_SICAT_HOME = System.getenv("SICAT_HOME");
+	public static File FOLDER_SICAT_HOME = new File(PATH_SICAT_HOME);
+	public static String PATH_DEPLOY_SGAP = new StringBuilder(PATH_SICAT_HOME).append("\\server\\sgap\\deploy\\sgap-sa").toString();
+	public static File FOLDER_DEPLOY_SGAP = new File(PATH_DEPLOY_SGAP);
+	public static String PATH_SICAT_INSTALL = "d:\\sicat-install\\sgap";
+	public static File FOLDER_SICAT_INSTALL = new File(PATH_SICAT_INSTALL);
+	public static boolean isEar = true;
+	/**
+	 * Obtem o EAR instalado
+	 * @return
+	 */
+	public static File getInstalledPackage() {
+		File earFile = null;
+		for( File file : FOLDER_DEPLOY_SGAP.listFiles() ){
+			if(file.getName().toLowerCase().endsWith(".ear")){
+				earFile = file;
+				break;
+			}
+			if(file.getName().toLowerCase().endsWith(".war")){
+				earFile = file;
+				isEar = false;
+				break;
+			}
+		}
+		return earFile;
+	}
+	
+	
+	public static boolean getInstalledPackageType() {
+		for( File file : FOLDER_DEPLOY_SGAP.listFiles() ){
+			if(file.getName().toLowerCase().endsWith(".ear")){
+				isEar =true;
+				break;
+			}
+			if(file.getName().toLowerCase().endsWith(".war")){
+				
+				isEar = false;
+				break;
+			}
+		}
+		return isEar;
+	}
+	
+	/**
+	 * Lista todos arquivos pendente para instalação
+	 * @return
+	 */
+	public static File[] getFilesForInstall(){
+		return FOLDER_SICAT_INSTALL.listFiles();
+	}
+	
+	public static void installArtfacts() {
+		;
+		List<File> jarFiles = new ArrayList<File>();
+		if(getInstalledPackageType()){
+			installAllArtfacts2Ear(jarFiles);
+		}else{
+			installAllArtfacts2War(jarFiles);
+		}
+		deployJarFiles(jarFiles);
+		System.out.println("Processo concluido!");
+	}
+
+
+	private static void installAllArtfacts2Ear( List<File> jarFiles) {
+		File earFile = null;
+		for( File file : getFilesForInstall() ){
+			if(file.getName().toLowerCase().endsWith(".ear")){
+				earFile = file;
+			} else if(file.getName().toLowerCase().endsWith(".jar") || file.getName().toLowerCase().endsWith(".war")) { 
+				jarFiles.add(file);
+			}
+		}
+		if(earFile != null){
+			deployEAR_WAR(earFile);
+		} else {
+			earFile = getInstalledPackage();
+			try {
+				if(EARWARUtil.isCompressed(earFile)){
+					EARWARUtil.extractEAR(earFile, FOLDER_DEPLOY_SGAP);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+
+	private static void installAllArtfacts2War( List<File> jarFiles) {
+		File fileType = null;
+		for( File file : getFilesForInstall() ){
+			if(file.getName().toLowerCase().endsWith(".war")){
+				fileType = file;
+			} else if(file.getName().toLowerCase().endsWith(".jar")) { 
+				jarFiles.add(file);
+			}
+		}
+		if(fileType != null){
+			deployEAR_WAR(fileType);
+		} else {
+			fileType = getInstalledPackage();
+			try {
+				if(EARWARUtil.isCompressed(fileType)){
+					EARWARUtil.extractEAR(fileType, FOLDER_DEPLOY_SGAP);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public static void deployEAR_WAR(final File earFile) {
+		File installedEAR = getInstalledPackage();
+		recursiveDelete(installedEAR);
+		System.out.println(new StringBuilder("Instalando novo WAR ou EAR: ").append(earFile.getAbsolutePath()).toString());
+		installedEAR = new File(FOLDER_DEPLOY_SGAP, earFile.getName());
+		try {
+			Files.move(earFile, installedEAR);
+			if(EARWARUtil.isCompressed(installedEAR)){
+				EARWARUtil.extractEAR(installedEAR, FOLDER_DEPLOY_SGAP);
+			}
+			System.out.println("Novo EAR instalado!");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static void deployJarFiles(List<File> jarFiles) {
+		File installedEAR = getInstalledPackage();
+		File libEAR_WAR = isEar? new File(installedEAR, "lib"):new File(installedEAR, "/WEB-INF/lib");
+		List<File> deployeds = new ArrayList<File>();
+		deployeds.addAll(Arrays.asList(libEAR_WAR.listFiles()));
+		deployeds.addAll(Arrays.asList(installedEAR.listFiles()));
+		for (File jar : deployeds ){
+			if(jar.getAbsolutePath().equals(libEAR_WAR.getAbsolutePath())){
+				continue;
+			}
+			ListIterator<File> iterator = jarFiles.listIterator();
+			while(iterator.hasNext()){
+				File file = iterator.next();
+				if(getModuleNameWithoutVersion(jar).equals(getModuleNameWithoutVersion(file))) {
+					try {
+						recursiveDelete(jar);
+						File destination = null;
+						String type = getModuleType(file);
+						if(Strings.isNullOrEmpty(type) || "jar".equals(type)){
+							destination = libEAR_WAR;
+						} else {
+							destination = installedEAR;
+						}
+						File newJar = new File(destination, file.getName());
+						Files.move(file, newJar);
+						iterator.remove();
+						System.out.println(new StringBuilder("Novo artefato instalado: ").append(jar.getAbsolutePath()).append(" => ").append(newJar.getAbsolutePath()));
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}				
+			}			
+		}
+	}
+	
+	/**
+	 * Apaga o arquivo solicitado. <br>
+	 * Caso o arquivo informado seja um diretório, efetua a remoção recursiva das pastas e arquivos.
+	 * @param aFile
+	 */
+	public static void recursiveDelete(final File aFile){
+		if(aFile!=null){
+			if(aFile.exists()){
+				if(aFile.isDirectory()){
+					for (File sub : aFile.listFiles()) {
+						recursiveDelete(sub);
+					}
+					aFile.delete();
+				} else {
+					aFile.delete();
+				}				
+			}
+		}
+	}
+	
+	private static Attributes getAtributesManifest(final File aFile) {
+		try {
+			JarFile jarFile;
+			jarFile = new java.util.jar.JarFile(aFile);
+			Attributes mainAttributes = jarFile.getManifest().getMainAttributes();
+			jarFile.close();
+			return mainAttributes;
+		} catch (IOException e) {
+			return null;
+		}
+	}
+	
+	private static String getModuleType(final File aFile){
+		Attributes mainAttributes = getAtributesManifest(aFile);
+		if(mainAttributes == null){
+			return null;
+		}
+		String moduleTyoe = mainAttributes.getValue("moduleType");
+		return moduleTyoe;
+	}
+	
+	private static String getModuleNameWithoutVersion(final File aFile){
+		Attributes mainAttributes = getAtributesManifest(aFile);
+		if(mainAttributes !=null ){
+			String moduleName = mainAttributes.getValue("module");
+			if(moduleName != null){
+				return moduleName;
+			}			
+		}
+		
+		if(!aFile.getName().contains("-")){
+			return aFile.getName();
+		}
+		String[] names = aFile.getName().split("-");
+		StringBuilder stringBuilder = new StringBuilder();
+		if(aFile.getName().toUpperCase().contains("SNAPSHOT")){
+			for (int i = names.length-1; i >=0 ; i--) {
+				if(names[i].toUpperCase().contains("SNAPSHOT")){
+					continue;
+				}
+				if(i < names.length-1){
+					for (int j = 0; j <= i -1; j++) {
+						stringBuilder.append(names[j]).append("-");
+					}				
+					break;
+				}
+			}			
+		} else {
+			for (int i = names.length-1; i >=0 ; i--) {
+				if(i < names.length-1){
+					for (int j = 0; j <= i; j++) {
+						stringBuilder.append(names[j]).append("-");
+					}				
+					break;
+				}
+			}			
+		}
+		return stringBuilder.toString();
+	}
+}

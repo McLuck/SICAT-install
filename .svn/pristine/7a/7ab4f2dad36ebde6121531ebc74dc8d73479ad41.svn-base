@@ -1,0 +1,30 @@
+/*
+ * COMPSIS – Computadores e Sistemas Ind. e Com. LTDA<br>
+ * Produto $(product_name} - ${product_description}<br>
+ *
+ * Data de Criação: 26/02/2014<br>
+ * <br>
+ * Todos os direitos reservados.
+ */
+
+package br.com.compsis.sicatinstall;
+
+
+/** 
+ * DOCUMENTAÇÃO DA CLASSE <br>
+ * ---------------------- <br>
+ * FINALIDADE: <br>
+ * TODO Definir documentação da classe. <br>
+ * <br>
+ * HISTÓRICO DE DESENVOLVIMENTO: <br>
+ * 26/02/2014 - @author Lucas Israel - Primeira versão da classe. <br>
+ *<br>
+ *<br>
+ * LISTA DE CLASSES INTERNAS: <br>
+ */
+
+public class Main {
+	public static void main(String[] args) {
+		PathsSicatUtil.installArtfacts();
+	}
+}
