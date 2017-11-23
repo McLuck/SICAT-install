@@ -122,8 +122,10 @@ public class WARUtil {
 	private static void extractFile(ZipInputStream in, File outdir, String name)
 			throws IOException {
 		byte[] buffer = new byte[BUFFER_SIZE];
-		BufferedOutputStream out = new BufferedOutputStream(
-				new FileOutputStream(new File(outdir, name)));
+		File target = new File(outdir, name);
+		target.getParentFile().mkdirs();
+        BufferedOutputStream out = new BufferedOutputStream(
+				new FileOutputStream(target));
 		int count = -1;
 		while ((count = in.read(buffer)) != -1)
 			out.write(buffer, 0, count);
